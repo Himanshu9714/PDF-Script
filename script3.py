@@ -13,12 +13,10 @@ new_lst = []
 
 with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.PDF') as f:
     extracted = ''
-    for page_no in range(11):
+    for page_no in range(505):
         fpage = f.pages[page_no]
-
         extracted = extracted + fpage.extract_text()
-        
-
+    
     for c in extracted:
         if c == '\n':
             out.append(''.join(buff))
@@ -28,18 +26,16 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
     else:
         if buff:
             out.append(''.join(buff))
+    # print(out, f"\n\n\n{len(out)}")
 
     lst = []
     is_dup = None
     cnt = 0
     for l in out:
         cnt += 1
-
-        print("Line: ", l)
+        if l.startswith('IGT Margin Maker') or l.startswith('Event Outcome Report') or l.startswith('SuperBook'): continue
         if l.startswith('SPORT: '):
             if is_dup!=None:
-                print("\n\nLine sport:", l)
-                print("\n\nDuplicate is_dup:", is_dup)
                 if is_dup == l:continue
                 else:
                     new_lst.append(lst)
@@ -49,10 +45,8 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
         else: 
             if lst != None:
                 lst.append(l)
-                print("Appended:", l)
-
     new_lst.append(lst)
-
+    # pp.pprint(new_lst)
 
     participant_rounds = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', 'Final/OT']
 
@@ -62,8 +56,9 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
         participants_dct = {}
         winning_selections = []
         winning_selections_dct = {}
+        winning_selections_flag = False
         for line in lst:
-            print("This is line:", line)
+            print(f"\n\nThis is line: {line}")
             if 'SPORT: ' in line:
                 game_dct['name'] = line
 
@@ -72,6 +67,7 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                 game_dct['id'] = line[-9:-1]
 
             elif ("Away" in line) or ("Home" in line):
+                winning_selections_flag = False
                 participants_dct = {}
                 pattern = "(?:\d{1}|----)"
                 BI = re.search(r"(\d{4})", line)
@@ -79,27 +75,61 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                     participants_dct['BI'] = BI[0]
                 else:
                     participants_dct['BI'] = ''
-                participants_dct['participant'] = re.search("([a-zA-Z]+\s[a-zA-Z]+)", line)[0] 
+                
                 participants_dct['HA'] = "Away" if "Away" in line else "Home"
+                participants_dct['participant'] = line[len(participants_dct['BI']):line.index(participants_dct['HA'])-1]
                 values = re.findall(pattern, line[4:])
+
                 for indx in range(len(participant_rounds)):
                     participants_dct[participant_rounds[indx]] = values[indx]
                 if len(participants_dct) == 13:
                     participants.append(participants_dct)
         
-            elif "Match Winner" in line:
+            elif "Market Name" in line:
+                winning_selections_flag = True
+            
+            elif winning_selections_flag:
+                try:
+                    check_continued_new_line = re.search('\(\d+\.\d\)', line)
+                    BIP = line.startswith('BIParticipant')
+                    WinSel = line.startswith("Winning Selections")
+                    bet_end = line.startswith("Bet End Market")
+                    mtchh = re.search('([a-zA-Z]|\s|/)+[@]([a-zA-Z]|\s|/)+', line)
+
+                    if (check_continued_new_line == None) and (not BIP) and (not WinSel) and (not bet_end) and (mtchh==None):
+                        print(f"Inside the if: {line}")
+                        winning_selections_dct['winning_selection'] += line
+                except: pass
+
                 winning_selections_dct = {}
-                dates = re.findall("\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} (?:am|pm)", line)
+                dates = re.findall("(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} (?:am|pm)|-----)", line)
+                if len(dates)>2: dates.pop()
+                if len(dates) != 2: continue
                 winning_selections_dct['bet_end'] = dates[0]
-                winning_selections_dct['market_name'] = re.search("Match Winner \(\d+\.\d\)", line)[0]
+
+                market_name = re.search("([a-zA-Z]|\s|/|\d|\([a-zA-Z\s|\d|(\.|\+)?]+\)|[\.\-\+\?])+\(\d+\.\d\)", line)[0]
+                market_name_ind = market_name.find(" am " if " am " in market_name else " pm ")
+                if market_name_ind>-1:
+                    market_name = market_name[market_name_ind+4:]
+                winning_selections_dct['market_name'] = market_name
                 winning_selections_dct['set_results'] = dates[1]
-                lst = line.split(' ')
-                winning_selections_dct['winning_selection'] = lst[-2] + " " + lst[-1]
-                winning_selections.append(winning_selections_dct)
-                
-    
+
+                l = len(line)
+                p = line.find(" am " if " am " in line else " pm ", l//2, l)
+                if p>-1:
+                    winning_selections_dct['winning_selection'] = line[p+4:]
+                else:
+                    if '-----' in line:
+                        dash_ind = line.index('-----')
+                        winning_selections_dct['winning_selection'] = line[dash_ind+6:]
+                    else:
+                        winning_selections_dct['winning_selection'] = '-----'
+                if winning_selections_dct in winning_selections:continue
+                else:winning_selections.append(winning_selections_dct)
+
         game_dct['pariticipants'] = participants
         game_dct['winning_selection'] = winning_selections
         game.append(game_dct)
-        
+       
+print("\n\n\n\n\n\*********************\n\n\n\n\*************\n\nResult******\n\n\n")
 pp.pprint(game)
