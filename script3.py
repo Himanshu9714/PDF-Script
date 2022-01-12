@@ -13,7 +13,7 @@ new_lst = []
 
 with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.PDF') as f:
     extracted = ''
-    for page_no in range(505):
+    for page_no in range(4):
         fpage = f.pages[page_no]
         extracted = extracted + fpage.extract_text()
     
@@ -46,7 +46,7 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
             if lst != None:
                 lst.append(l)
     new_lst.append(lst)
-    # pp.pprint(new_lst)
+    pp.pprint(new_lst)
 
     participant_rounds = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', 'Final/OT']
 
@@ -58,15 +58,16 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
         winning_selections_dct = {}
         winning_selections_flag = False
         for line in lst:
-            print(f"\n\nThis is line: {line}")
+            
             if 'SPORT: ' in line:
                 game_dct['name'] = line
 
-            elif re.match(r'([a-zA-Z]|\s|/)+[@]([a-zA-Z]|\s|/)+\s\d{2}/\d{2}/\d{4}', line):
+            elif re.match(r'([a-zA-Z]|\s|/|\w)+[@]([a-zA-Z]|\s|/|\w+)+\s\d{2}/\d{2}/\d{4}', line):
                 game_dct['date'] = line[-37:-15]
                 game_dct['id'] = line[-9:-1]
 
-            elif ("Away" in line) or ("Home" in line):
+            elif (("Away" in line) or ("Home" in line)) and (re.search('\(\d+\.\d\)',line)==None):
+                print(f"\n\nThis is line inside participant: {line}")
                 winning_selections_flag = False
                 participants_dct = {}
                 pattern = "(?:\d{1}|----)"
@@ -77,7 +78,11 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                     participants_dct['BI'] = ''
                 
                 participants_dct['HA'] = "Away" if "Away" in line else "Home"
-                participants_dct['participant'] = line[len(participants_dct['BI']):line.index(participants_dct['HA'])-1]
+                if len(participants_dct['BI'])==0 and line.index(participants_dct['HA'])==0:
+                    participants_dct['participant'] = ''
+                else:
+                    participants_dct['participant'] = line[len(participants_dct['BI']):line.index(participants_dct['HA'])-1]
+                print(f"\n\n\nParticipant Dct: {len(participants_dct['BI'])}\nParticipant HA index: {line.index(participants_dct['HA'])}")
                 values = re.findall(pattern, line[4:])
 
                 for indx in range(len(participant_rounds)):
@@ -89,6 +94,7 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                 winning_selections_flag = True
             
             elif winning_selections_flag:
+                print(f"\n\nThis is line inside winning: {line}")
                 try:
                     check_continued_new_line = re.search('\(\d+\.\d\)', line)
                     BIP = line.startswith('BIParticipant')
@@ -97,17 +103,23 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                     mtchh = re.search('([a-zA-Z]|\s|/)+[@]([a-zA-Z]|\s|/)+', line)
 
                     if (check_continued_new_line == None) and (not BIP) and (not WinSel) and (not bet_end) and (mtchh==None):
-                        print(f"Inside the if: {line}")
                         winning_selections_dct['winning_selection'] += line
+                        continue
                 except: pass
 
                 winning_selections_dct = {}
                 dates = re.findall("(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2} (?:am|pm)|-----)", line)
+                try:
+                    if line.index(dates[0]) != 0:
+                        dates.append('')
+                        dates[0], dates[1] = dates[1], dates[0]
+                except:pass
+
                 if len(dates)>2: dates.pop()
                 if len(dates) != 2: continue
                 winning_selections_dct['bet_end'] = dates[0]
 
-                market_name = re.search("([a-zA-Z]|\s|/|\d|\([a-zA-Z\s|\d|(\.|\+)?]+\)|[\.\-\+\?])+\(\d+\.\d\)", line)[0]
+                market_name = re.search("([a-zA-Z]|\s|/|\d|\w|\([a-zA-Z\s|\d|(\.|\+)?]+\)|[\.\-\+\?\&\'])+\(\d+\.\d\)", line)[0]
                 market_name_ind = market_name.find(" am " if " am " in market_name else " pm ")
                 if market_name_ind>-1:
                     market_name = market_name[market_name_ind+4:]
