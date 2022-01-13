@@ -19,7 +19,7 @@ def add_game(participants, winning_selections, inner_game_dct, game):
 
 with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.PDF') as f:
     extracted = ''
-    for page_no in range(304,313):
+    for page_no in range(0,len(f.pages)):
         fpage = f.pages[page_no]
         extracted = extracted + fpage.extract_text()
     
@@ -32,7 +32,6 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
     else:
         if buff:
             out.append(''.join(buff))
-    # print(out, f"\n\n\n{len(out)}")
 
     lst = []
     is_dup = None
@@ -53,7 +52,6 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                 lst.append(l)
     new_lst.append(lst)
     out.clear()
-    # pp.pprint(new_lst)
 
     participant_rounds = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', 'Final/OT']
 
@@ -67,9 +65,8 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
     winning_selections_flag = False
     for lst in new_lst:
         for line in lst:
-            print(f"\nThis is line:{line}")
             
-            if 'SPORT: ' in line:
+            if line.startswith('SPORT: '):
                 if participants != [] and winning_selections != []:
                     add_game(participants, winning_selections, inner_game_dct, game)
 
@@ -77,10 +74,9 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                     winning_selections = []
                     game_dct = {}
                     game = []
-                if "Promotions" in line: break
                 game_dct['name'] = line
 
-            elif re.match(r'([a-zA-Z]|\s|[\,\/\+\-\&\.\:]|\w)+[@]([a-zA-Z]|\s|[\,\/\+\-\&\.\:\?]|\w)+\(?([a-zA-Z\s]|\-|\d)*\)?\s\d{2}/\d{2}/\d{4}', line):
+            elif re.match(r'([a-zA-Z]|\s|[\,\/\+\-\&\.\:]|\w)+[@]([a-zA-Z]|\s|[\,\/\+\-\&\.\:\?\(\)]|\w|)+\s\d{2}/\d{2}/\d{4}', line):
                 if participants != [] and winning_selections != []:
                     add_game(participants, winning_selections, inner_game_dct, game)
 
@@ -161,17 +157,18 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                         winning_selections_dct['winning_selection'] = '-----'
                 if winning_selections_dct in winning_selections:continue
                 else:winning_selections.append(winning_selections_dct)
-                print(f"Winning Selection: {winning_selections}")
 
         game_dct['game'] = game
         if not game_dct in events:
             events.append(game_dct)
-    if participants != [] and winning_selections != []:
-        add_game(participants, winning_selections, inner_game_dct, game)
-    print(f"Game dict outside for loop {game_dct}")
+
+    try:
+        if participants != [] and winning_selections != []:
+            add_game(participants, winning_selections, inner_game_dct, game)
+    except: pass
+
     if game_dct!={} and game_dct not in events:
-        print("\n\n\nLast if called\n\n")
         events.append(game_dct)
        
-print("\n\n\n\n\n\*********************\n\n\n\n\*************\n\nResult******\n\n\n")
+print("\n\n\n**************\n\n\n\n\*************\n\nResult******\n\n\n")
 pp.pprint(events)
