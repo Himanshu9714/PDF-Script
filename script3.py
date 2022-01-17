@@ -3,13 +3,8 @@ import re
 from datetime import datetime
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
-
-events = []
-game_dct = {}
-out = []
-buff = []
-is_duplicate_sport_str = None
-new_lst = []
+import time
+start = time.time()
 
 def add_game(participants, winning_selections, inner_game_dct, game):
     inner_game_dct['pariticipants'] = participants
@@ -17,27 +12,31 @@ def add_game(participants, winning_selections, inner_game_dct, game):
     game.append(inner_game_dct)
     return game
 
-with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.PDF') as f:
-    extracted = ''
-    for page_no in range(0,len(f.pages)):
-        fpage = f.pages[page_no]
-        extracted = extracted + fpage.extract_text()
-    
-    for c in extracted:
-        if c == '\n':
-            out.append(''.join(buff))
-            buff = []
+def pages_of_pdf_in_string(filename):
+    out = []
+    buff = []
+    with pdfplumber.open(filename) as f:
+        extracted = ''
+        for page_no in range(0,50):
+            fpage = f.pages[page_no]
+            extracted = extracted + fpage.extract_text()
+        
+        for c in extracted:
+            if c == '\n':
+                out.append(''.join(buff))
+                buff = []
+            else:
+                buff.append(c)
         else:
-            buff.append(c)
-    else:
-        if buff:
-            out.append(''.join(buff))
+            if buff:
+                out.append(''.join(buff))
+    return out    
 
+def pages_of_pdf_in_list(out):
     lst = []
+    new_lst = []
     is_dup = None
-    cnt = 0
     for l in out:
-        cnt += 1
         if l.startswith('IGT Margin Maker') or l.startswith('Event Outcome Report') or l.startswith('SuperBook'): continue
         if l.startswith('SPORT: '):
             if is_dup!=None:
@@ -52,6 +51,14 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
                 lst.append(l)
     new_lst.append(lst)
     out.clear()
+    return new_lst
+
+def pdf_processing(filename):
+    events = []
+    game_dct = {}
+
+    out = pages_of_pdf_in_string(filename)
+    new_lst = pages_of_pdf_in_list(out)
 
     participant_rounds = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', 'Final/OT']
 
@@ -64,8 +71,7 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
     winning_selections_dct = {}
     winning_selections_flag = False
     for lst in new_lst:
-        for line in lst:
-            
+        for line in lst:      
             if line.startswith('SPORT: '):
                 if participants != [] and winning_selections != []:
                     add_game(participants, winning_selections, inner_game_dct, game)
@@ -169,6 +175,10 @@ with pdfplumber.open('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.
 
     if game_dct!={} and game_dct not in events:
         events.append(game_dct)
-       
-print("\n\n\n**************\n\n\n\n\*************\n\nResult******\n\n\n")
+        
+    print("\n\n\n**************\n\n\n\n\*************\n\nResult******\n\n\n")
+    return events
+events = pdf_processing('events-FREVNOUT-11162021-A7A5ACECC8AB1DB56E14BD0232ED186F.PDF')
 pp.pprint(events)
+end = time.time()
+print(f"\n\n\nTotal taken time: {end-start}")
